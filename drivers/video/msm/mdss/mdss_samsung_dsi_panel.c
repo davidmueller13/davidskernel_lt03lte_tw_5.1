@@ -317,6 +317,9 @@ extern void mdss_dsi_panel_touchsensing(int enable);
 #endif
 int get_lcd_attached(void);
 
+extern void kgsl_early_suspend_driver(void);
+extern void kgsl_late_resume_driver(void);
+
 #if (defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PT_PANEL)\
 		&& !defined(CONFIG_FB_MSM_MDSS_MAGNA_LDI_EA8061))\
 		|| defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL)
@@ -3019,6 +3022,9 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 
 	mipi  = &pdata->panel_info.mipi;
 
+	// Turn on kgsl
+	kgsl_late_resume_driver();
+
 #if defined(CONFIG_DUAL_LCD)
 {
 	int ret;
@@ -3153,6 +3159,9 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
 
 	mipi  = &pdata->panel_info.mipi;
+
+	// Turn off kgsl
+	kgsl_early_suspend_driver();
 
 #if defined(CONFIG_ESD_ERR_FG_RECOVERY)
 	if (err_fg_enable && !err_fg_working && msd.dstat.on) {

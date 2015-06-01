@@ -58,6 +58,8 @@ module_param_named(mmutype, ksgl_mmu_type, charp, 0);
 MODULE_PARM_DESC(ksgl_mmu_type,
 "Type of MMU to be used for graphics. Valid values are 'iommu' or 'gpummu' or 'nommu'");
 
+static struct kgsl_device *kgsl_shared_device;
+
 struct kgsl_dma_buf_meta {
 	struct dma_buf_attachment *attach;
 	struct dma_buf *dmabuf;
@@ -806,23 +808,17 @@ static int kgsl_resume_device(struct kgsl_device *device)
 	return 0;
 }
 
-void kgsl_early_suspend_driver(struct power_suspend *h)
+void kgsl_early_suspend_driver(void)
 {
-	struct kgsl_device *device = container_of(h,
-					struct kgsl_device, display_off);
-
 	pm_message_t arg = {0};
-	kgsl_suspend_device(device, arg);
+	kgsl_suspend_device(kgsl_shared_device, arg);
 
 	return;
 }
 
-void kgsl_late_resume_driver(struct power_suspend *h)
+void kgsl_late_resume_driver(void)
 {
-	struct kgsl_device *device = container_of(h,
-					struct kgsl_device, display_off);
-
-	kgsl_resume_device(device);
+	kgsl_resume_device(kgsl_shared_device);
 
 	return;
 }
@@ -4315,6 +4311,8 @@ int kgsl_device_platform_probe(struct kgsl_device *device)
 
 	/* Initialize common sysfs entries */
 	kgsl_pwrctrl_init_sysfs(device);
+
+	kgsl_shared_device = device;
 
 	return 0;
 
