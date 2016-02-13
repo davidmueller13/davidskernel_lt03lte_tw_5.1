@@ -62,8 +62,6 @@ static void request_send(pub_crypto_control_t *con,
 		pub_crypto_request_t *req);
 static void request_wait_answer(pub_crypto_control_t *con,
 		pub_crypto_request_t *req);
-static pub_crypto_request_t *request_find(pub_crypto_control_t *con,
-		u32 request_id);
 static pub_crypto_request_t *request_alloc(u32 opcode);
 static void request_free(pub_crypto_request_t *req);
 static void req_dump(pub_crypto_request_t *req, const char *msg);
@@ -189,71 +187,6 @@ out:
 	return rc;
 }
 
-   
-static int pub_crypto_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
-{
-	void			*data;
-	u16			msg_type = nlh->nlmsg_type;
-	u32 err = 0;
-	struct audit_status	*status_get = NULL;
-	u16 len = 0;
-
-	data = NLMSG_DATA(nlh);
-	len = ntohs(*(uint16_t*) (data+1));
-	switch (msg_type) {
-		case PUB_CRYPTO_PID_SET:
-			status_get   = (struct audit_status *)data;
-			user_fipscryptod_pid = status_get->pid;
-			PUB_CRYPTO_LOGE("crypto_receive_msg: pid = %d\n", user_fipscryptod_pid);
-			break;
-		case PUB_CRYPTO_RESULT:
-		{
-			result_t *result = (result_t *)data;
-			pub_crypto_request_t *req = NULL;
-
-			spin_lock(&g_pub_crypto_control.lock);
-			req = request_find(&g_pub_crypto_control, result->request_id);
-			spin_unlock(&g_pub_crypto_control.lock);
-
-			if(req == NULL) {
-				PUB_CRYPTO_LOGE("crypto result :: error! can't find request %d\n",
-						result->request_id);
-#if 0
-				req->state = PUB_CRYPTO_REQ_FINISHED;
-				req->aborted = 1;
-				wake_up(&req->waitq);
-
-				memset(result, 0, sizeof(result_t));
-#endif
-			} else {
-				memcpy(&req->result, result, sizeof(result_t));
-				req->state = PUB_CRYPTO_REQ_FINISHED;
-				wake_up(&req->waitq);
-
-				memset(result, 0, sizeof(result_t));
-			}
-			break;
-		}
-		default:
-			PUB_CRYPTO_LOGE("unknown message type : %d\n", msg_type);
-			break;
-	}
-
-	return err;
-}
-
-/* Receive messages from netlink socket. */
-static void crypto_recver(struct sk_buff  *skb)
-{
-	struct nlmsghdr *nlh;
-	int len;
-	int err;
-
-	nlh = nlmsg_hdr(skb);
-	len = skb->len;
-
-	err = pub_crypto_recv_msg(skb, nlh);
-}
 
 static void dump(unsigned char *buf, int len, const char *msg) {
 #if PUB_CRYPTO_DEBUG
@@ -419,20 +352,6 @@ static void request_wait_answer(pub_crypto_control_t *con,
 			break;
 		}
 	}
-}
-
-static pub_crypto_request_t *request_find(pub_crypto_control_t *con,
-		u32 request_id) {
-	struct list_head *entry;
-
-	list_for_each(entry, &con->pending_list) {
-		 pub_crypto_request_t *req;
-		req = list_entry(entry, pub_crypto_request_t, list);
-		if (req->id == request_id)
-			return req;
-	}
-
-	return NULL;
 }
 
 static struct kmem_cache *pub_crypto_req_cachep;
